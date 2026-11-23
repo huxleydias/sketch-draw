@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sketch draw — demo</title>
+<style>
+  /* Tokens que o efeito lê (todos têm fallback no JS). */
+  :root {
+    --background: #fafafa;
+    --foreground: #141414;
+    --card: #ffffff;
+    --muted: #6b6b6b;
+    --border: #e6e6e6;
+    --skeleton: #ececec;
+    --accent: #3b5bfd;
+    --duration-stagger: 40ms;
+    --duration-fast: 250ms;
+    --duration-slow: 400ms;
+    --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --background: #0f0f0f; --foreground: #f0f0f0; --card: #181818;
+      --muted: #9a9a9a; --border: #2a2a2a; --skeleton: #262626; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --background: #0f0f0f; --foreground: #f0f0f0; --card: #181818;
+    --muted: #9a9a9a; --border: #2a2a2a; --skeleton: #262626; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--background); color: var(--foreground); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px; max-width: 1100px; margin: 0 auto; }
+  .toolbar button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--foreground); cursor: pointer; }
+
+  /* O container recebe os overlays: precisa ser posicionado e não pode cortar a margem de 44 px. */
+  .board { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 56px; padding: 56px 16px; max-width: 1100px; margin: 0 auto; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-height: 180px; }
+  .card-head { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .card-head svg { width: 16px; height: 16px; }
+  .kpi { font-size: 26px; font-weight: 650; letter-spacing: -.01em; }
+  .muted { color: var(--muted); margin: 0; }
+  .bar { height: 8px; border-radius: 99px; background: var(--skeleton); overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+  .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .list li { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--skeleton); flex: none; }
+  .field { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: inherit; }
+  .btn { font: inherit; padding: 8px 12px; border-radius: 8px; border: 0; background: var(--foreground); color: var(--background); }
+  .sk { background: var(--skeleton); border-radius: 6px; height: 12px; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <button id="replay" type="button">Rodar de novo</button>
+    <button id="stream" type="button">Simular carregamento (2,5 s)</button>
+    <button id="theme" type="button">Alternar tema</button>
+  </div>
+
+  <main class="board" id="board">
+    <article class="card" data-sketch>
+      <header class="card-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        <span>Receita</span>
+      </header>
+      <strong class="kpi">R$ 182.400</strong>
+      <p class="muted">+12,4% vs. mês anterior</p>
+      <div class="bar"><span style="width: 68%"></span></div>
+    </article>
+
+    <article class="card" data-sketch>
+      <header class="card-head"><span>Últimos eventos</span></header>
+      <ul class="list">
+        <li><span class="avatar"></span><span>checkout_started</span></li>
+        <li><span class="avatar"></span><span>add_to_cart</span></li>
+        <li><span class="avatar"></span><span>view_item_list</span></li>
+      </ul>
+    </article>
+
+    <article class="card" data-sketch>
+      <header class="card-head"><span>Convidar</span></header>
+      <input class="field" placeholder="nome@empresa.com" aria-label="E-mail">
+      <button class="btn" type="button">Enviar convite</button>
+    </article>
+
+    <article class="card" id="loading" data-sketch>
+      <header class="card-head"><span>Carregando…</span></header>
+      <div class="sk" style="width: 70%"></div>
+      <div class="sk" style="width: 90%"></div>
+      <div class="sk" style="width: 50%"></div>
+    </article>
+  </main>
+
+  <script src="sketch-draw.js"></script>
+  <script>
+    const board = document.getElementById("board");
+    const cards = [...document.querySelectorAll("[data-sketch]")];
+    const loading = document.getElementById("loading");
+
+    // Primeira carga: orquestração automática (espera entrar na tela, stagger, teto por faixa).
+    cards.forEach((el) => SketchDraw.auto(el, { container: board, complete: true }));
+
+    // "Rodar de novo": chama o motor direto, sem memória.
+    document.getElementById("replay").addEventListener("click", () => {
+      cards.forEach((el, i) => SketchDraw.generate(el, { container: board, delay: i * 40, complete: true }));
+    });
+
+    // Streaming: a planta segura enquanto o conteúdo não chega; complete() monta as partes e revela.
+    document.getElementById("stream").addEventListener("click", () => {
+      loading.innerHTML = `<header class="card-head"><span>Carregando…</span></header>
+        <div class="sk" style="width:70%"></div><div class="sk" style="width:90%"></div><div class="sk" style="width:50%"></div>`;
+      const h = SketchDraw.generate(loading, { container: board, complete: false });
+      setTimeout(() => {
+        loading.innerHTML = `<header class="card-head"><span>Conversão</span></header>
+          <strong class="kpi">3,8%</strong><p class="muted">Funil checkout · 7 dias</p>
+          <div class="bar"><span style="width: 38%"></span></div>`;
+        h.complete();
+      }, 2500);
+    });
+
+    document.getElementById("theme").addEventListener("click", () => {
+      const root = document.documentElement;
+      const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      root.dataset.theme = dark ? "light" : "dark";
+    });
+  </script>
+</body>
+</html>
